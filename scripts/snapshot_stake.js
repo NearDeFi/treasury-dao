@@ -12,11 +12,15 @@ const config = {
   nodeUrl: "https://rpc.mainnet.near.org",
 };
 
-async function resolve_account_id(account, account_id) {
-    if (account_id.endsWith('.lockup.near')) {
-        return account.viewFunction(account_id, 'get_owner_account_id');
+async function resolve_account_id(account, contractId) {
+    if (contractId.endsWith('.lockup.near')) {
+        return account.viewFunction({
+			contractId,
+			methodName: 'get_owner_account_id',
+			args: {}
+		});
     }
-    return account_id;
+    return contractId;
 }
 
 async function writeFile(json, outFile, fields) {
@@ -33,12 +37,21 @@ async function writeFile(json, outFile, fields) {
     const validators = await near.connection.provider.sendJsonRpc('validators', [null]);
     const accounts = new Map();
     for (let j = 0; j < validators.current_validators.length; ++j) {
-        const validatorId = validators.current_validators[j].account_id;
-        const validator = await near.account(validatorId);
-        const numAccounts = await validator.viewFunction(validatorId, 'get_number_of_accounts');
-        console.log(`${j}/${validators.current_validators.length} Fetching ${validatorId}, total ${numAccounts}`);
+        const contractId = validators.current_validators[j].account_id;
+        const validator = await near.account(contractId);
+		console.log(contractId)
+        const numAccounts = await validator.viewFunction({
+			contractId,
+			methodName: 'get_number_of_accounts',
+			args: {}
+		});
+        console.log(`${j}/${validators.current_validators.length} Fetching ${contractId}, total ${numAccounts}`);
         for (let i = 0; i < numAccounts; i += 10) {
-            const delegates = await validator.viewFunction(validatorId, 'get_accounts', { from_index: i, limit: 10 });
+            const delegates = await validator.viewFunction({
+				contractId,
+				methodName: 'get_accounts',
+				args: { from_index: i, limit: 10 }
+			});
             for (let k = 0; k < delegates.length; ++k) {
                 const account_id = await resolve_account_id(validator, delegates[k].account_id);
                 const prevValue = accounts.get(account_id) || new BN('0');
